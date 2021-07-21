@@ -19,9 +19,29 @@ function createTextElement(text) {
   };
 }
 
+// 新增render方法，用来将生成的元素对象渲染为真正的dom节点
+function render(element, container) {
+  const dom = element.type === 'TEXT_ELEMENT'
+      ? document.createTextNode('')
+      : document.createElement(element.type);
+
+  const isProperty = key => key !== 'children';
+  Object.keys(element.props)
+      .filter(isProperty)
+      .forEach(name => {
+          dom[name] = element.props[name];
+      });
+  element.props.children.forEach(child =>
+      render(child, dom)
+  );
+  container.appendChild(dom);
+}
+
 const Didact = {
-  createElement
+  createElement,
+  render
 };
+
 // 使用Didact的createElement替代原生的createElement来创建对象
 const element = Didact.createElement(
   'div',
@@ -29,5 +49,7 @@ const element = Didact.createElement(
   Didact.createElement('a', null, 'bar'),
   Didact.createElement('b')
 );
+const container = document.getElementById('root');
+Didact.render(element, container);
 
 console.log('element', element);

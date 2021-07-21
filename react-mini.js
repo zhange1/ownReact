@@ -49,19 +49,30 @@ function commitWork(fiber) {
   if (!fiber) {
       return;
   }
+  let domParentFiber = fiber.parent;
+  while (!domParentFiber.dom) {
+      domParentFiber = domParentFiber.parent;
+  }
   const domParent = fiber.parent.dom;
   if (fiber.effectTag === 'PLACEMENT' && fiber.dom !== null) {
       domParent.appendChild(fiber.dom);
   } else if (fiber.effectTag === 'UPDATE' && fiber.dom !== null) {
       updateDom(fiber.dom, fiber.alternate.props, fiber.props);
   } else if (fiber.effectTag === 'DELETION') {
-      domParent.removeChild(fiber.dom);
+    commitDeletion(fiber, domParentFiber);
   }
   domParent.appendChild(fiber.dom);
   commitWork(fiber.child);
   commitWork(fiber.sibling);
 }
 
+function commitDeletion(fiber, domParent) {
+    if (fiber.dom) {
+        domParent.removeChild(fiber.dom);
+    } else {
+        commitDeletion(fiber.child, domParent);
+    }
+}
 
 const isEvent = key => key.startsWith('on');
 const isProperty = key => key !== 'children' && !isEvent;
@@ -141,7 +152,7 @@ function workLoop(deadline) {
     requestIdleCallback(workLoop);
 }
 
-// requestIdleCallback(workLoop);
+requestIdleCallback(workLoop);
 
 // elements就是wipeFiber的子element, 自己取就好了, 为什么要传进来? 
 // 函数组件取children方法不一样, reconcileChildren只管diff, 在这取不合适
@@ -187,10 +198,17 @@ function reconcileChildren(wipFiber, elements) {
             oldFiber.effectTag = 'DELETION';
             deletions.push(oldFiber);
         }
+
+        if (oldFiber) {
+            oldFiber = oldFiber.sibling;
+        }
         // 若是第一个的话，则将根元素的第一个赋值为当前的
         if (index === 0) {
             wipFiber.child = newFiber;
+        } else {
+            prevSibling.sibling = newFiber;
         }
+        prevSibling = newFiber;
     }
 }
 
@@ -208,6 +226,13 @@ function performUnitOfWork(fiber) {
    * b找不到兄弟的时候就会找他们的叔叔, a和b的父亲和叔叔也是同样的关系, 这样就不需要判断这个节点是否被找过
    */
   console.log('fiber===', fiber);
+
+  const isFunctionComponent = fiber.type instanceof Function;
+  if (isFunctionComponent) {
+      updateFunctionComponent(fiber);
+  } else {
+      updateHostComponent(fiber);
+  }
 
   if (!fiber.dom) {
       fiber.dom = createDom(fiber);
@@ -261,25 +286,41 @@ function performUnitOfWork(fiber) {
   }
 }
 
+function updateFunctionComponent(fiber) {
+    const children = [fiber.type(fiber.props)];
+    reconcileChildren(fiber, children);
+}
+
+function updateHostComponent(fiber) {
+    if (!fiber.dom) {
+        fiber.dom = createDom(fiber);
+    }
+    reconcileChildren(fiber, fiber.props.children);
+}
+
 const Didact = {
   createElement,
   render
 };
 
-const container = document.getElementById('root');
-
-const updateValue = e => {
-    rerender(e.target.value);
-};
+// const updateValue = e => {
+//     rerender(e.target.value);
+// };
 /** @jsx Didact.createElement */
-const rerender = value => {
-    const element = (
-        <div>
-            <input onInput={updateValue} value={value} />
-            <h2>Hello {value}</h2>
-        </div>
-    );
-    Didact.render(element, container);
-};
+// const rerender = value => {
+//     const element = (
+//         <div>
+//             <input onInput={updateValue} value={value} />
+//             <h2>Hello {value}</h2>
+//         </div>
+//     );
+//     Didact.render(element, container);
+// };
 
-rerender('please input');
+// rerender('please input');
+
+function App(props) {
+    return <h1>Hi {props.name}</h1>;
+}
+const element = <App name='foo' />;
+Didact.render(element, container);

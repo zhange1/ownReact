@@ -1,14 +1,33 @@
-const element = {
-  type: 'h1',
-  props: {
-      title: 'foo',
-      children: 'Hello'
-  }
+// 创建元素
+function createElement(type, props, ...children) {
+  return {
+      type,
+      props: {
+          ...props,
+          children: children.map(child => typeof child === 'object' ? child : createTextElement(child))
+      }
+  };
+}
+// 创建文本元素
+function createTextElement(text) {
+  return {
+      type: 'TEXT_ELEMENT',
+      props: {
+          nodeValue: text,
+          children: []
+      }
+  };
+}
+
+const Didact = {
+  createElement
 };
-const container = document.getElementById('root');
-const node = document.createElement(element.type);
-node.title = element.props.title;
-const text = document.createTextNode('');
-text.nodeValue = element.props.children;
-node.appendChild(text);
-container.appendChild(node);
+// 使用Didact的createElement替代原生的createElement来创建对象
+const element = Didact.createElement(
+  'div',
+  { id: 'foo' },
+  Didact.createElement('a', null, 'bar'),
+  Didact.createElement('b')
+);
+
+console.log('element', element);

@@ -19,23 +19,35 @@ function createTextElement(text) {
   };
 }
 
-// 新增render方法，用来将生成的元素对象渲染为真正的dom节点
-function render(element, container) {
-  const dom = element.type === 'TEXT_ELEMENT'
-      ? document.createTextNode('')
-      : document.createElement(element.type);
+function createDom(fiber) {
+    const dom = fiber.type === 'TEXT_ELEMENT'
+        ? document.createTextNode('')
+        : document.createElement(fiber.type);
 
-  const isProperty = key => key !== 'children';
-  Object.keys(element.props)
-      .filter(isProperty)
-      .forEach(name => {
-          dom[name] = element.props[name];
-      });
-  element.props.children.forEach(child =>
-      render(child, dom)
-  );
-  container.appendChild(dom);
+    const isProperty = key => key !== 'children';
+    Object.keys(fiber.props)
+        .filter(isProperty)
+        .forEach(name => {
+            dom[name] = fiber.props[name];
+        });
+
+    return dom;
 }
+
+function render(element, container) {
+    // element.props.children.forEach(child =>
+    //     render(child, dom)
+    // );
+    // container.appendChild(dom);
+    nextUnitOfWork = {
+        dom: container,
+        props: {
+            children: [element]
+        }
+    };
+}
+
+
 let nextUnitOfWork = null;
 
 function workLoop(deadline) {
@@ -51,8 +63,68 @@ function workLoop(deadline) {
 
 requestIdleCallback(workLoop);
 
-function performUnitOfWork(nextUnitOfWork) {
-    // TODO
+function performUnitOfWork(fiber) {
+  /**
+   * dom添加子节点
+   * 找下一个节点: 
+   *  1. 找这个节点的子节点,  child为空就是到头了
+   *  2. 子节点空了, 找兄弟节点,  sibling为空就是到头了
+   *  3. 兄弟节点空了, 找叔叔节点  
+   * 
+   * 问题: 
+   * 找兄弟节点和叔叔节点的时候, 怎么判断这个节点已经被找过了? 
+   * > 每个fiber的sibling只指向他的下一个fiber, (a和b是兄弟节点, a知道b是自己的兄弟, 但b认为自己没有兄弟 )
+   * b找不到兄弟的时候就会找他们的叔叔, a和b的父亲和叔叔也是同样的关系, 这样就不需要判断这个节点是否被找过
+   */
+
+  if (!fiber.dom) {
+      fiber.dom = createDom(fiber);
+  }
+
+  if (fiber.parent) {
+      fiber.parent.dom.appendChild(fiber.dom);
+  }
+
+  const elements = fiber.props.children;
+  let index = 0;
+  let prevSibling = null;
+  while (index < elements.length) {
+      const element = elements[index];
+      const newFiber = {
+          type: element.type,
+          props: element.props,
+          parent: fiber,
+          dom: null
+      };
+      /**
+       * 这里给当前的fiber添加child和sibling指向, 并且给当前fiber的兄弟fiber添加sibling指向
+       */
+      
+      if (index === 0) {
+          fiber.child = newFiber;
+      } else {
+          prevSibling.sibling = newFiber;
+      }
+
+      prevSibling = newFiber;
+
+      index++;
+  }
+
+  // 先找child
+  if (fiber.child) {
+      return fiber.child;
+  }
+
+  let nextFiber = fiber;
+  while (nextFiber) {
+    // 然后找sibling
+      if (nextFiber.sibling) {
+          return nextFiber.sibling;
+      }
+      // 最后找parent的sibling
+      nextFiber = nextFiber.parent;
+  }
 }
 
 const Didact = {

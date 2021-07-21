@@ -34,20 +34,36 @@ function createDom(fiber) {
     return dom;
 }
 
-function render(element, container) {
-    // element.props.children.forEach(child =>
-    //     render(child, dom)
-    // );
-    // container.appendChild(dom);
-    nextUnitOfWork = {
-        dom: container,
-        props: {
-            children: [element]
-        }
-    };
+function commitRoot() {
+  commitWork(wipRoot.child);
+  wipRoot = null;
 }
 
+function commitWork(fiber) {
+  if (!fiber) {
+      return;
+  }
+  const domParent = fiber.parent.dom;
+  domParent.appendChild(fiber.dom);
+  commitWork(fiber.child);
+  commitWork(fiber.sibling);
+}
 
+function render(element, container) {
+  // element.props.children.forEach(child =>
+  //     render(child, dom)
+  // );
+  // container.appendChild(dom);
+  wipRoot = {
+      dom: container,
+      props: {
+          children: [element]
+      }
+  };
+  nextUnitOfWork = wipRoot;
+  console.log('nextUnitOfWork', nextUnitOfWork);
+}
+let wipRoot = null;
 let nextUnitOfWork = null;
 
 function workLoop(deadline) {
@@ -57,6 +73,10 @@ function workLoop(deadline) {
             nextUnitOfWork
         );
         shouldYield = deadline.timeRemaining() < 1;
+    }
+
+    if (!nextUnitOfWork && wipRoot) {
+        commitRoot();
     }
     requestIdleCallback(workLoop);
 }
@@ -76,6 +96,7 @@ function performUnitOfWork(fiber) {
    * > 每个fiber的sibling只指向他的下一个fiber, (a和b是兄弟节点, a知道b是自己的兄弟, 但b认为自己没有兄弟 )
    * b找不到兄弟的时候就会找他们的叔叔, a和b的父亲和叔叔也是同样的关系, 这样就不需要判断这个节点是否被找过
    */
+  console.log('fiber===', fiber);
 
   if (!fiber.dom) {
       fiber.dom = createDom(fiber);
@@ -137,7 +158,7 @@ const element = Didact.createElement(
   'div',
   { id: 'foo' },
   Didact.createElement('a', null, 'bar'),
-  Didact.createElement('b')
+  Didact.createElement('b', null, 'ahaaa')
 );
 const container = document.getElementById('root');
 Didact.render(element, container);
